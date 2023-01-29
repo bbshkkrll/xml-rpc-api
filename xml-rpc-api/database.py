@@ -13,11 +13,7 @@ class Database:
         self.password = password
 
         try:
-            connection = connect(
-                dbname=dbname,
-                user=user,
-                host=host,
-                password=password)
+            connection = self.get_connection()
 
             connection.autocommit = True
             with connection.cursor() as cursor:
@@ -28,8 +24,6 @@ class Database:
                 cursor.execute('CREATE TABLE public.users(login varchar(50) PRIMARY KEY NOT NULL, '
                                'password varchar(50) NOT NULL'
                                ')')
-
-                cursor.execute("insert into users values ('login_password', 'test_password')")
 
             with connection.cursor() as cursor:
                 cursor.execute('CREATE TABLE public.application_data('
@@ -53,12 +47,22 @@ class Database:
                 connection.close()
 
     def get_connection(self):
+
+        connection = connect(
+            dbname=self.dbname,
+            user=self.user,
+            host=self.host,
+            password=self.password)
+
+        return connection
+
+    def save_user(self, login, user_password):
         try:
-            connection = connect(
-                dbname=self.dbname,
-                user=self.user,
-                host=self.host,
-                password=self.password)
+            connection = self.get_connection()
+
+            with connection.cursor() as cursor:
+                cursor.execute(f"insert into users values ('{login}', '{user_password}')")
+
         except psycopg2.OperationalError as e:
             raise AttributeError
         finally:
@@ -70,10 +74,10 @@ class Database:
             connection = self.get_connection()
 
             with connection.cursor() as cursor:
-                cursor.execute(f"select password from users where login = '{login}'")
+                cursor.execute(f"select password from users where login='{login}'")
 
-                password: tuple[str] | None = cursor.fetchone()
-                return password
+                user_password = cursor.fetchone()
+                return user_password
 
         except psycopg2.OperationalError as e:
             raise AttributeError
@@ -103,6 +107,7 @@ if __name__ == '__main__':
     user = 'admin'
     password = 'admin'
     db = Database(dbname, host, user, password)
+    time.sleep(5)
 
-    ans = db.get_password_by_login('login_password')
+    ans = db.get_password_by_login('login')
     print(ans)
