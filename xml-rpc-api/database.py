@@ -1,8 +1,6 @@
 import time
-from typing import Tuple, Any
 
-import psycopg2
-from psycopg2 import connect, extensions, sql
+from psycopg2 import connect, OperationalError
 
 
 class Database:
@@ -47,7 +45,7 @@ class Database:
                                ')')
 
 
-        except psycopg2.OperationalError as e:
+        except OperationalError as e:
             raise AttributeError
         finally:
             pass
@@ -73,7 +71,7 @@ class Database:
                                f"WHERE data_key='{data_key}'")
 
                 return cursor.fetchone()
-        except psycopg2.OperationalError as e:
+        except OperationalError as e:
             raise AttributeError
 
         finally:
@@ -87,7 +85,7 @@ class Database:
             with connection.cursor() as cursor:
                 cursor.execute(f"insert into users values ('{login}', '{user_password}')")
 
-        except psycopg2.OperationalError as e:
+        except OperationalError as e:
             raise AttributeError
         finally:
             if connection:
@@ -103,7 +101,7 @@ class Database:
                 user_password = cursor.fetchone()
                 return user_password
 
-        except psycopg2.OperationalError as e:
+        except OperationalError as e:
             raise AttributeError
         finally:
             if connection:
@@ -118,7 +116,7 @@ class Database:
                     f"INSERT INTO sessions values ('{session_id}', '{login}', '{start_session_time}', '{live_up_time}')")
 
                 connection.commit()
-        except psycopg2.OperationalError:
+        except OperationalError:
             raise AttributeError
 
         finally:
@@ -137,7 +135,7 @@ class Database:
                 session = cursor.fetchone()
                 return session
 
-        except psycopg2.OperationalError:
+        except OperationalError:
             raise AttributeError
         finally:
             if connection:
@@ -176,14 +174,3 @@ class Database:
             session_data = cursor.fetchone()
             return session_data
 
-
-if __name__ == '__main__':
-    dbname = "xml-rpc-db"
-    host = 'localhost'
-    user = 'admin'
-    password = 'admin'
-    db = Database(dbname, host, user, password)
-    time.sleep(5)
-
-    ans = db.get_password_by_login('login')
-    print(ans)

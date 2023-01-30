@@ -35,12 +35,8 @@ class XMLRPCServer:
 
     def start(self):
         with SimpleXMLRPCServer((self.address, self.port), allow_none=True) as xml_rpc_server:
-            xml_rpc_server.register_introspection_functions()
 
-            # @xml_rpc_server.register_function()
-            # def registration(login, user_password):
-            #     db.save_user(login, user_password)
-            #     return 'Success'
+            xml_rpc_server.register_introspection_functions()
 
             @xml_rpc_server.register_function()
             def authorization(login, user_password):

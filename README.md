@@ -64,3 +64,11 @@
 - ключ - выработанный секрет
 
 - данные - полученный челлендж
+
+## Подготовка
+Чтобы запустить приложение, предварительно необходимо создать базу данных и добавить записиси:
+1) В таблицу users (_insert into users values ('login', 'password')_)
+2) В таблицу application_data (insert into application_data values (_'somthing_key', 'Lorem ipsum dolor sit amet')_)
+## Запуск
+1) Запустить server.py
+2) Запустить client.py со своими параметрами
