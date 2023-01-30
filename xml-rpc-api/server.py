@@ -1,9 +1,13 @@
 import datetime
+import hashlib
+import hmac
+import random
 import xmlrpc.client
 from xmlrpc.server import SimpleXMLRPCServer
 from database import Database
 from uuid import uuid4
 from xmlrpc.client import Fault
+from session import Session
 
 
 class XMLRPCServer:
@@ -13,8 +17,24 @@ class XMLRPCServer:
         self.database: Database = database
         self.user_session_alive_time_sec = user_session_alive_time_seconds
 
+    @staticmethod
+    def is_session_alive(user_session_id):
+        session_params = db.get_session_by_id(user_session_id)
+
+        if session_params is not None:
+            session = Session(session_params)
+            return session.session_id == user_session_id and (
+                    session.start_session_time <= datetime.datetime.now() <= session.live_up_time)
+
+        return False
+
+    @staticmethod
+    def get_sign(key, msg):
+        return hmac.new(key=bytes(str(key), encoding='utf-8'), msg=bytes(msg, encoding='utf-8'),
+                        digestmod=hashlib.sha256).hexdigest()
+
     def start(self):
-        with SimpleXMLRPCServer((self.address, self.port)) as xml_rpc_server:
+        with SimpleXMLRPCServer((self.address, self.port), allow_none=True) as xml_rpc_server:
             xml_rpc_server.register_introspection_functions()
 
             # @xml_rpc_server.register_function()
@@ -35,22 +55,50 @@ class XMLRPCServer:
 
                     self.database.save_session(session_id, login, start_session_time, session_alive_up_time)
 
-                    return str(session_id)
-                    # return xmlrpc.client.dumps(str(session_id), methodresponse=True)
+                    return xmlrpc.client.dumps((str(session_id),), methodresponse=True)
                 else:
-                    return xmlrpc.client.dumps(Fault(1, 'Authorization error'), methodresponse=True)
+                    return xmlrpc.client.dumps(Fault(1, 'FAULT: Authorization error'), methodresponse=True)
 
             @xml_rpc_server.register_function()
-            def get_value_from_database():
-                pass
+            def generate_private_key(session_id, partial_client_key, base, module):
+                if self.is_session_alive(session_id):
+                    power = random.randint(2 ** 10, 2 ** 20)
+                    partial_server_key = base ** power % module
+                    private_key = partial_client_key ** power % module
+
+                    db.save_private_key(session_id, private_key)
+
+                    return xmlrpc.client.dumps((partial_server_key,), methodresponse=True)
+                else:
+                    return xmlrpc.client.dumps(Fault(1, 'FAULT: Your session is terminate, please start new session'),
+                                               methodresponse=True)
 
             @xml_rpc_server.register_function()
-            def generate_secret():
-                pass
+            def get_challenge(session_id):
+                if self.is_session_alive(session_id):
+                    current_challenge = str(datetime.datetime.now())
+                    db.save_current_challenge(session_id, current_challenge)
+                    return xmlrpc.client.dumps((current_challenge,), methodresponse=True)
+
+                return xmlrpc.client.dumps(Fault(1, 'FAULT: Your session is terminate, please start new session'),
+                                           methodresponse=True)
 
             @xml_rpc_server.register_function()
-            def get_challenge():
-                pass
+            def get_value_from_database(session_id, data_key, sign):
+                if self.is_session_alive(session_id):
+                    session_data = db.get_session_data_by_session_id(session_id)
+                    if session_data is not None:
+                        private_key, current_challenge = session_data
+                        sever_sign = self.get_sign(key=private_key, msg=current_challenge)
+
+                        if sever_sign == sign:
+                            response_data = db.get_application_data_by_key(data_key)
+                            if response_data is not None:
+                                return xmlrpc.client.dumps((response_data,), methodresponse=True)
+                        else:
+                            return xmlrpc.client.dumps(Fault(1, 'FAULT: Wrong key, try again.'))
+                else:
+                    return xmlrpc.client.dumps(Fault(1, 'FAULT: Your session is terminate, please start new session'))
 
             xml_rpc_server.serve_forever()
 
@@ -61,6 +109,6 @@ if __name__ == '__main__':
     user = 'admin'
     password = 'admin'
     db = Database(dbname, host, user, password)
-    server = XMLRPCServer('localhost', 8000, db)
+    server = XMLRPCServer('localhost', 8001, db)
 
     server.start()

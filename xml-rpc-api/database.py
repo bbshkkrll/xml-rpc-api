@@ -27,7 +27,7 @@ class Database:
 
             with connection.cursor() as cursor:
                 cursor.execute('CREATE TABLE public.application_data('
-                               'public_key varchar(100) NOT NULL, '
+                               'data_key varchar(100) NOT NULL, '
                                'string_value text'
                                ')')
 
@@ -38,6 +38,14 @@ class Database:
                                'start_session_time timestamp, '
                                'live_up_time timestamp'
                                ')')
+
+            with connection.cursor() as cursor:
+                cursor.execute('CREATE TABLE public.session_data('
+                               'session_id varchar(50) references public.sessions, '
+                               'private_key varchar(10) NOT NULL, '
+                               'current_challenge varchar(30)'
+                               ')')
+
 
         except psycopg2.OperationalError as e:
             raise AttributeError
@@ -55,6 +63,22 @@ class Database:
             password=self.password)
 
         return connection
+
+    def get_application_data_by_key(self, data_key):
+        try:
+            connection = self.get_connection()
+
+            with connection.cursor() as cursor:
+                cursor.execute(f"SELECT string_value FROM application_data "
+                               f"WHERE data_key='{data_key}'")
+
+                return cursor.fetchone()
+        except psycopg2.OperationalError as e:
+            raise AttributeError
+
+        finally:
+            if connection:
+                connection.close()
 
     def save_user(self, login, user_password):
         try:
@@ -93,12 +117,64 @@ class Database:
                 cursor.execute(
                     f"INSERT INTO sessions values ('{session_id}', '{login}', '{start_session_time}', '{live_up_time}')")
 
+                connection.commit()
         except psycopg2.OperationalError:
             raise AttributeError
 
         finally:
             if connection:
                 connection.close()
+
+    def get_session_by_id(self, session_id):
+        try:
+            connection = self.get_connection()
+
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"SELECT * FROM sessions WHERE session_id='{session_id}'"
+                )
+
+                session = cursor.fetchone()
+                return session
+
+        except psycopg2.OperationalError:
+            raise AttributeError
+        finally:
+            if connection:
+                connection.close()
+
+    def save_private_key(self, session_id, private_key):
+        connection = self.get_connection()
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"INSERT INTO session_data(session_id, private_key) VALUES ('{session_id}', '{private_key}')"
+            )
+
+            connection.commit()
+
+    def save_current_challenge(self, session_id, current_challenge):
+        connection = self.get_connection()
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"UPDATE session_data "
+                f"SET current_challenge='{current_challenge}'"
+                f"WHERE session_id='{session_id}'"
+            )
+            connection.commit()
+
+    def get_session_data_by_session_id(self, session_id):
+        connection = self.get_connection()
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT private_key, current_challenge FROM session_data "
+                f"WHERE session_id='{session_id}'"
+            )
+
+            session_data = cursor.fetchone()
+            return session_data
 
 
 if __name__ == '__main__':
