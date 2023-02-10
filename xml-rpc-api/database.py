@@ -1,5 +1,3 @@
-import time
-
 from psycopg2 import connect, OperationalError
 
 
@@ -27,7 +25,7 @@ class Database:
                 cursor.execute('CREATE TABLE public.application_data('
                                'data_key varchar(100) NOT NULL, '
                                'string_value text'
-                               ')')
+                               ');')
 
             with connection.cursor() as cursor:
                 cursor.execute('CREATE TABLE public.sessions('
@@ -67,11 +65,12 @@ class Database:
             connection = self.get_connection()
 
             with connection.cursor() as cursor:
-                cursor.execute(f"SELECT string_value FROM application_data "
-                               f"WHERE data_key='{data_key}'")
+
+                cursor.execute("select string_value FROM application_data "
+                               "where data_key='{0:s}'".format(data_key))
 
                 return cursor.fetchone()
-        except OperationalError as e:
+        except OperationalError and ValueError as e:
             raise AttributeError
 
         finally:
@@ -83,25 +82,25 @@ class Database:
             connection = self.get_connection()
 
             with connection.cursor() as cursor:
-                cursor.execute(f"insert into users values ('{login}', '{user_password}')")
+                cursor.execute("insert into users values ('{0:s}', '{1:s}')".format(login, user_password))
 
-        except OperationalError as e:
+        except OperationalError and ValueError as e:
             raise AttributeError
         finally:
             if connection:
                 connection.close()
 
-    def get_password_by_login(self, login):
+    def get_password_by_login(self, login: str):
         try:
             connection = self.get_connection()
 
             with connection.cursor() as cursor:
-                cursor.execute(f"select password from users where login='{login}'")
+                cursor.execute("select password from users where login='{0:s}'".format(login))
 
                 user_password = cursor.fetchone()
                 return user_password
 
-        except OperationalError as e:
+        except OperationalError and ValueError as e:
             raise AttributeError
         finally:
             if connection:
@@ -113,10 +112,13 @@ class Database:
 
             with connection.cursor() as cursor:
                 cursor.execute(
-                    f"INSERT INTO sessions values ('{session_id}', '{login}', '{start_session_time}', '{live_up_time}')")
+                    f"insert into sessions values {0:s} {1:s} {2:s} {3:s}".format(session_id,
+                                                                                  login,
+                                                                                  start_session_time,
+                                                                                  live_up_time))
 
                 connection.commit()
-        except OperationalError:
+        except OperationalError and ValueError:
             raise AttributeError
 
         finally:
@@ -129,48 +131,62 @@ class Database:
 
             with connection.cursor() as cursor:
                 cursor.execute(
-                    f"SELECT * FROM sessions WHERE session_id='{session_id}'"
+                    "select * from sessions where session_id='{0:s}'".format(session_id)
                 )
 
                 session = cursor.fetchone()
                 return session
 
-        except OperationalError:
+        except OperationalError and ValueError:
             raise AttributeError
         finally:
             if connection:
                 connection.close()
 
     def save_private_key(self, session_id, private_key):
-        connection = self.get_connection()
+        try:
+            connection = self.get_connection()
 
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"INSERT INTO session_data(session_id, private_key) VALUES ('{session_id}', '{private_key}')"
-            )
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "insert into session_data(session_id, private_key) values ({0:s}, {1:s})".format(session_id,
+                                                                                                     private_key)
+                )
 
-            connection.commit()
+                connection.commit()
+
+        except OperationalError and ValueError:
+            raise AttributeError
+
+        finally:
+            if connection:
+                connection.close()
 
     def save_current_challenge(self, session_id, current_challenge):
-        connection = self.get_connection()
+        try:
+            connection = self.get_connection()
 
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"UPDATE session_data "
-                f"SET current_challenge='{current_challenge}'"
-                f"WHERE session_id='{session_id}'"
-            )
-            connection.commit()
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "update session_data set current_challenge='{0:s}' where session_id='{1:s}'".format(session_id,
+                                                                                                        current_challenge)
+                )
+                connection.commit()
+
+        except OperationalError and ValueError:
+            raise AttributeError
+
+        finally:
+            if connection:
+                connection.close()
 
     def get_session_data_by_session_id(self, session_id):
         connection = self.get_connection()
 
         with connection.cursor() as cursor:
             cursor.execute(
-                f"SELECT private_key, current_challenge FROM session_data "
-                f"WHERE session_id='{session_id}'"
+                "select private_key, current_challenge FROM session_data where session_id='{0:s}'".format(session_id)
             )
 
             session_data = cursor.fetchone()
             return session_data
-
