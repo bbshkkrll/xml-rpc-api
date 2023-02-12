@@ -18,7 +18,7 @@ class XMLRPCServer:
         self.user_session_alive_time_sec = user_session_alive_time_seconds
 
     @staticmethod
-    def is_session_alive(user_session_id):
+    def _is_session_alive(user_session_id):
         session_params = db.get_session_by_id(user_session_id)
 
         if session_params is not None:
@@ -29,9 +29,13 @@ class XMLRPCServer:
         return False
 
     @staticmethod
-    def get_sign(key, msg):
+    def _get_sign(key, msg):
         return hmac.new(key=bytes(str(key), encoding='utf-8'), msg=bytes(msg, encoding='utf-8'),
                         digestmod=hashlib.sha256).hexdigest()
+
+    @staticmethod
+    def _encrypt_password(user_password):
+        return hashlib.sha256(user_password.encode()).hexdigest()
 
     def start(self):
         with SimpleXMLRPCServer((self.address, self.port), allow_none=True) as xml_rpc_server:
@@ -40,9 +44,10 @@ class XMLRPCServer:
 
             @xml_rpc_server.register_function()
             def authorization(login, user_password):
-                original_password = self.database.get_password_by_login(login)
+                original_password_hash = self.database.get_password_by_login(login)
+                user_password_hash = self._encrypt_password(user_password)
 
-                if original_password is not None and original_password[0] == user_password:
+                if original_password_hash is not None and original_password_hash[0] == user_password_hash:
                     start_session_time = datetime.datetime.now()
                     session_alive_up_time = start_session_time + datetime.timedelta(
                         seconds=self.user_session_alive_time_sec)
@@ -57,7 +62,7 @@ class XMLRPCServer:
 
             @xml_rpc_server.register_function()
             def generate_private_key(session_id, partial_client_key, base, module):
-                if self.is_session_alive(session_id):
+                if self._is_session_alive(session_id):
                     power = random.randint(2 ** 10, 2 ** 20)
                     partial_server_key = base ** power % module
                     private_key = partial_client_key ** power % module
@@ -71,7 +76,7 @@ class XMLRPCServer:
 
             @xml_rpc_server.register_function()
             def get_challenge(session_id):
-                if self.is_session_alive(session_id):
+                if self._is_session_alive(session_id):
                     current_challenge = str(datetime.datetime.now())
                     db.save_current_challenge(session_id, current_challenge)
                     return xmlrpc.client.dumps((current_challenge,), methodresponse=True)
@@ -81,11 +86,11 @@ class XMLRPCServer:
 
             @xml_rpc_server.register_function()
             def get_value_from_database(session_id, data_key, sign):
-                if self.is_session_alive(session_id):
+                if self._is_session_alive(session_id):
                     session_data = db.get_session_data_by_session_id(session_id)
                     if session_data is not None:
                         private_key, current_challenge = session_data
-                        sever_sign = self.get_sign(key=private_key, msg=current_challenge)
+                        sever_sign = self._get_sign(key=private_key, msg=current_challenge)
 
                         if sever_sign == sign:
                             response_data = db.get_application_data_by_key(data_key)

@@ -18,7 +18,7 @@ class Database:
 
             with connection.cursor() as cursor:
                 cursor.execute('CREATE TABLE public.users(login varchar(50) PRIMARY KEY NOT NULL, '
-                               'password varchar(50) NOT NULL'
+                               'hash_password varchar(64) NOT NULL'
                                ')')
 
             with connection.cursor() as cursor:
@@ -95,7 +95,7 @@ class Database:
             connection = self.get_connection()
 
             with connection.cursor() as cursor:
-                cursor.execute("select password from users where login='{0:s}'".format(login))
+                cursor.execute("select hash_password from users where login='{0:s}'".format(login))
 
                 user_password = cursor.fetchone()
                 return user_password
