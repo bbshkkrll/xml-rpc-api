@@ -82,7 +82,8 @@ class Database:
             connection = self.get_connection()
 
             with connection.cursor() as cursor:
-                cursor.execute("insert into users values ('{0:s}', '{1:s}')".format(login, user_password))
+                cursor.execute("insert into users values ('{0:s}', '{1:s}')"
+                                               .format(login, user_password))
 
         except OperationalError and ValueError as e:
             raise AttributeError
